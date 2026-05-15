@@ -103,20 +103,42 @@ def get_all_prices():
     return prices
 
 NEWS_SOURCES = [
+    # Forex & Macro
     {"name": "FXStreet",         "url": "https://www.fxstreet.com/rss/news"},
+    {"name": "DailyFX",          "url": "https://www.dailyfx.com/feeds/all"},
+    {"name": "Investing.com",    "url": "https://www.investing.com/rss/news.rss"},
     {"name": "MarketWatch",      "url": "https://feeds.content.dowjones.io/public/rss/mw_topstories"},
     {"name": "Bloomberg",        "url": "https://feeds.bloomberg.com/markets/news.rss"},
     {"name": "Reuters",          "url": "https://feeds.reuters.com/reuters/topNews"},
     {"name": "Financial Times",  "url": "https://www.ft.com/rss/home"},
+    {"name": "The Economist",    "url": "https://www.economist.com/latest/rss.xml"},
+    # Or & Metaux
+    {"name": "Kitco Gold",       "url": "https://www.kitco.com/rss/kitco-news.xml"},
+    {"name": "Gold Price",       "url": "https://goldprice.org/rss.xml"},
+    # Crypto
     {"name": "CoinDesk",         "url": "https://www.coindesk.com/arc/outboundfeeds/rss/"},
     {"name": "Cointelegraph",    "url": "https://cointelegraph.com/rss"},
+    {"name": "The Block",        "url": "https://www.theblock.co/rss.xml"},
+    {"name": "Decrypt",          "url": "https://decrypt.co/feed"},
+    # Sources officielles
     {"name": "AP News",          "url": "https://rsshub.app/apnews/topics/apf-topnews"},
     {"name": "BBC World",        "url": "https://feeds.bbci.co.uk/news/world/rss.xml"},
     {"name": "Fed Reserve",      "url": "https://www.federalreserve.gov/feeds/press_all.xml"},
+    {"name": "White House",      "url": "https://www.whitehouse.gov/feed/"},
+    {"name": "IMF",              "url": "https://www.imf.org/en/News/rss?language=eng"},
+    # TradingView (analyses publiques)
+    {"name": "TradingView",      "url": "https://www.tradingview.com/feed/"},
+    # Telegram channels
+    {"name": "@FXStreet",        "url": "https://rsshub.app/telegram/channel/fxstreet"},
+    {"name": "@KitcoNews",       "url": "https://rsshub.app/telegram/channel/kitconews"},
+    # Reddit traders
     {"name": "r/Forex",          "url": "https://www.reddit.com/r/Forex/hot.json?limit=10", "type": "reddit"},
     {"name": "r/Daytrading",     "url": "https://www.reddit.com/r/Daytrading/hot.json?limit=10", "type": "reddit"},
     {"name": "r/wallstreetbets", "url": "https://www.reddit.com/r/wallstreetbets/hot.json?limit=10", "type": "reddit"},
     {"name": "r/Gold",           "url": "https://www.reddit.com/r/Gold/hot.json?limit=10", "type": "reddit"},
+    {"name": "r/investing",      "url": "https://www.reddit.com/r/investing/hot.json?limit=10", "type": "reddit"},
+    {"name": "r/algotrading",    "url": "https://www.reddit.com/r/algotrading/hot.json?limit=10", "type": "reddit"},
+    {"name": "r/Bitcoin",        "url": "https://www.reddit.com/r/Bitcoin/hot.json?limit=10", "type": "reddit"},
 ]
 
 HIGH_VALUE_KEYWORDS = [
