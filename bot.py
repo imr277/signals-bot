@@ -312,15 +312,168 @@ def build_signal_message(news_item, signal):
         f"{risque_icon} <b>Risque :</b> {risque}\n\n"
         f"🤖 <b>Analyse</b>\n{analyse}"
     )
+    # Ajouter la gestion du risque
+    entry_val = signal.get("entry", 0)
+    sl_val = signal.get("sl", 0)
+    if entry_val and sl_val:
+        risk = calculate_position_size(float(entry_val), float(sl_val))
+        if risk:
+            msg += (
+                f"\n\n💼 <b>Gestion du risque ({CAPITAL}$ / {RISK_PCT}% risque)</b>\n"
+                f"Risque max : ${risk['risk_amount']}\n"
+                f"Distance SL : {risk['sl_pct']}%\n"
+                f"Taille position : {risk['units']} unites\n"
+                f"Valeur position : ${risk['position_usd']}"
+            )
     if news_item.get("link"):
         msg += f"\n\n🔗 {news_item['link']}"
     return msg
+
+
+
+# ─── GESTION DU RISQUE ───────────────────────────────────────────────────────
+
+CAPITAL = float(os.environ.get("CAPITAL", "1000"))       # Capital total en USD
+RISK_PCT = float(os.environ.get("RISK_PCT", "1"))         # Risque par trade en %
+
+def calculate_position_size(entry, sl, capital=CAPITAL, risk_pct=RISK_PCT):
+    """Calcule la taille de position optimale selon le risque"""
+    if not entry or not sl or entry == sl:
+        return None
+    risk_amount = capital * (risk_pct / 100)
+    sl_distance = abs(entry - sl)
+    sl_pct = (sl_distance / entry) * 100
+    position_size = risk_amount / sl_distance
+    units = position_size
+    return {
+        "capital": capital,
+        "risk_pct": risk_pct,
+        "risk_amount": round(risk_amount, 2),
+        "sl_distance": round(sl_distance, 4),
+        "sl_pct": round(sl_pct, 2),
+        "units": round(units, 4),
+        "position_usd": round(units * entry, 2),
+    }
+
+# ─── SUIVI DES POSITIONS ─────────────────────────────────────────────────────
+
+active_positions = []  # Liste des signaux actifs à surveiller
+
+def add_position(signal, news_item):
+    """Ajoute un signal à la liste de suivi"""
+    pos = {
+        "id": uid(news_item["title"] + str(signal.get("entry", 0))),
+        "actif": signal.get("actif", ""),
+        "symbole": signal.get("symbole", ""),
+        "direction": signal.get("direction", ""),
+        "entry": float(signal.get("entry", 0)),
+        "tp1": float(signal.get("tp1", 0)),
+        "tp2": float(signal.get("tp2", 0)),
+        "sl": float(signal.get("sl", 0)),
+        "rr": signal.get("rr", ""),
+        "timeframe": signal.get("timeframe", ""),
+        "news": news_item["title"][:60],
+        "opened_at": datetime.now(timezone.utc).isoformat(),
+        "tp1_hit": False,
+        "tp2_hit": False,
+        "closed": False,
+    }
+    active_positions.append(pos)
+    log(f"Position ajoutee : {pos['actif']} {pos['direction']} @ {pos['entry']}")
+
+def check_positions(prices):
+    """Verifie si TP ou SL atteint pour chaque position active"""
+    to_close = []
+    for pos in active_positions:
+        if pos["closed"]:
+            continue
+        symbol = pos["symbole"]
+        current = prices.get(symbol)
+        if not current:
+            continue
+        direction = pos["direction"]
+        entry = pos["entry"]
+        tp1 = pos["tp1"]
+        tp2 = pos["tp2"]
+        sl = pos["sl"]
+
+        # Calcul du PnL en pourcentage
+        if direction == "LONG":
+            pnl_pct = ((current - entry) / entry) * 100
+            tp1_hit = current >= tp1
+            tp2_hit = current >= tp2
+            sl_hit = current <= sl
+        else:  # SHORT
+            pnl_pct = ((entry - current) / entry) * 100
+            tp1_hit = current <= tp1
+            tp2_hit = current <= tp2
+            sl_hit = current >= sl
+
+        # TP1 atteint
+        if tp1_hit and not pos["tp1_hit"]:
+            pos["tp1_hit"] = True
+            msg = (
+                f"🎯 <b>TP1 ATTEINT — {pos['actif']}</b>\n\n"
+                f"Signal : {pos['direction']} @ {entry}\n"
+                f"Prix actuel : {current}\n"
+                f"TP1 : {tp1}\n"
+                f"PnL : +{pnl_pct:.2f}%\n\n"
+                f"💡 Conseille : securise une partie de la position\n"
+                f"Laisse tourner vers TP2 : {tp2}"
+            )
+            send_telegram(msg)
+            log(f"TP1 atteint : {pos['actif']} @ {current}")
+
+        # TP2 atteint
+        if tp2_hit and not pos["tp2_hit"]:
+            pos["tp2_hit"] = True
+            pos["closed"] = True
+            to_close.append(pos["id"])
+            msg = (
+                f"✅ <b>TP2 ATTEINT — FERME TA POSITION</b>\n\n"
+                f"Signal : {pos['actif']} {pos['direction']} @ {entry}\n"
+                f"Prix actuel : {current}\n"
+                f"TP2 : {tp2}\n"
+                f"PnL : +{pnl_pct:.2f}%\n\n"
+                f"🏆 Trade gagne — ferme maintenant !"
+            )
+            send_telegram(msg)
+            log(f"TP2 atteint : {pos['actif']} @ {current}")
+
+        # SL atteint
+        if sl_hit and not pos["closed"]:
+            pos["closed"] = True
+            to_close.append(pos["id"])
+            msg = (
+                f"🛑 <b>STOP LOSS ATTEINT — FERME TA POSITION</b>\n\n"
+                f"Signal : {pos['actif']} {pos['direction']} @ {entry}\n"
+                f"Prix actuel : {current}\n"
+                f"SL : {sl}\n"
+                f"PnL : {pnl_pct:.2f}%\n\n"
+                f"❌ Trade perd — coupe maintenant pour limiter les pertes."
+            )
+            send_telegram(msg)
+            log(f"SL atteint : {pos['actif']} @ {current}")
+
+    # Nettoyer les positions fermees apres 24h
+    cutoff = 86400  # 24 heures
+    active_positions[:] = [
+        p for p in active_positions
+        if not p["closed"] or
+        (datetime.now(timezone.utc) - datetime.fromisoformat(p["opened_at"])).total_seconds() < cutoff
+    ]
 
 def run_check():
     log("Scan des sources...")
     news = fetch_all_news()
     prices = get_all_prices()
     log(f"{len(prices)} prix charges, {len(news)} articles")
+
+    # Verifier les positions actives
+    if active_positions:
+        log(f"Verification de {len(active_positions)} positions actives...")
+        check_positions(prices)
+
     sent = 0
     for item in news:
         nid = uid(item["title"] + item["source"])
@@ -340,6 +493,7 @@ def run_check():
             continue
         msg = build_signal_message(item, signal)
         if send_telegram(msg):
+            add_position(signal, item)
             sent += 1
             log(f"Signal envoye [{score}/10] : {item['title'][:50]}")
         time.sleep(3)
